@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  slackbot:
+    build: .
+    container_name: pockiri-backup
+    env_file:
+      - .env.development
+    environment:
+      ENV_MODE: development
+    volumes:
+      - .:/usr/src/
+    command: ["python", "-u", "app.py"]
+    ports:
+      - "8080:8080"

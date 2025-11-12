@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <title>#{{ channel_name }} - Slack Archive</title>
+  <link rel="stylesheet" href="../assets/slack_style.css" />
+  <script src="../assets/script.js"></script>
+</head>
+<body>
+  <header>
+    <h1>{{ workspace }}</h1>
+  </header>
+  <main>
+      <div class="channels">
+        <ul>
+          {% for channel in channels %}
+          <li><a href="/archive/{{ date }}/{{ channel.name }}.html">#{{ channel.name }}</a></li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <div class="messages">  
+        <h2>#{{ channel_name }}</h2>
+        {% for msg in messages %}
+        <div class="message">
+          <img src="{{ msg.user_icon }}" class="avatar">
+          <div class="content">
+            <div class="meta">
+              <span class="user">{{ msg.user_name }}</span>
+              <span class="timestamp">{{ msg.timestamp }}</span>
+            </div>
+            <div class="text">{{ msg.text_html|safe }}</div>
+
+            {% if msg.files %}
+            <div class="files">
+              {% for f in msg.files %}
+                {% if "image" in f.mimetype %}
+                  <img src="{{ f.local_path }}" alt="{{ f.name }}" class="file-image">
+                {% else %}
+                  <a href="{{ f.local_path }}" class="file-link" download>{{ f.name }}</a>
+                {% endif %}
+              {% endfor %}
+            </div>
+          {% endif %}
+
+            {% if msg.reactions %}
+              <div class="reactions">
+                {% for r in msg.reactions %}
+                  <span class="reaction">:{{ r.name }}: ×{{ r.count }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            {% if msg.replies %}
+              <div class="thread">
+                {% for reply in msg.replies %}
+                  <div class="reply">
+                    <span class="reply-user">{{ reply.user_name }}</span>
+                    <span class="reply-time">{{ reply.timestamp }}</span>
+                    <div class="reply-text">{{ reply.text_html|safe }}</div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+    </div>
+  </main>
+</body>
+</html>
