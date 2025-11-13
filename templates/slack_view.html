@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <title>#{{ channel_name }} - Slack Archive</title>
-  <link rel="stylesheet" href="../assets/css/slack_style.css" />
-  <script src="../assets/js/script.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static',filename='css/slack_style.css') }}">
+  <script src="{{ url_for('static',filename='js/script.js') }}"></script>
 </head>
 <body>
   <header>
@@ -46,7 +46,7 @@
             {% if msg.reactions %}
               <div class="reactions">
                 {% for r in msg.reactions %}
-                  <span class="reaction">:{{ r.name }}: ×{{ r.count }}</span>
+                  <span class="reaction">{{ r.emoji_html|safe }} {{ r.count }}</span>
                 {% endfor %}
               </div>
             {% endif %}

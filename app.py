@@ -26,7 +26,7 @@ def capture_channels():
     # --- 日付ディレクトリを準備 --- #
     date_str = datetime.now().strftime("%Y-%m-%d")
     archive_dir = f"archive/{date_str}"
-    os.makedirs(f"{archive_dir}/avatars", exist_ok=True)
+    os.makedirs(f"{archive_dir}/avatar", exist_ok=True)
     os.makedirs(f"{archive_dir}/media", exist_ok=True)
 
     # --- ワークスペース情報を取得 --- #

@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  slackbot:
+    build: .
+    container_name: pockiri-backup-prod
+    env_file:
+      - .env.production
+    environment:
+      ENV_MODE: production
+    restart: always

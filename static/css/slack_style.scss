@@ -1,0 +1,165 @@
+@import "reset";
+@import "vars";
+
+body {
+  font-family: "Lato", "Helvetica Neue", sans-serif;
+  color: $textColor;
+  margin: 0;
+}
+
+header{
+  width: 100%;
+  padding: 1.0rem;
+  background-color: $primaryColorDeep;
+  color: $whiteTextColor;
+}
+
+main{
+  width: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+}
+
+.channels{
+	width: 20%;
+	padding: 1.0rem;
+	background: $primaryColor;
+	ul{
+	list-style: none;
+		li{
+		padding: 0.2rem;
+			a{
+			text-decoration: none;
+			color: $whiteTextColor;
+			}
+		}
+	}
+}
+
+
+.messages{
+  width: 80%;
+  padding: 1.0rem;
+}
+
+.messages {
+  h2{
+    padding: 0.2rem 1.0rem;
+    color: $textColor;
+    font-size: 1.4rem;
+    font-weight: bold;
+  }
+  .message {
+    padding: 12px 16px;
+    border-bottom: 1px solid $borderColor;
+    font-size: 1.0rem;
+    color: $textColor;
+  }
+}
+
+
+
+.content {
+  .meta{
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+     
+      .avatar {
+        width: 50px;
+        height: 50px;
+        border-radius: 4px;
+        margin-right: 10px;
+      }
+      .user{
+        color: $textColor;
+        font-size: 1.0rem;
+        font-weight: bold;
+        margin-left: 1.0rem;
+      }
+      .timestamp{
+          color: $subTextColor;
+          margin-left: 1.0rem;
+          font-size: 0.85em;
+      }  
+    }
+    .text{
+      margin-top: 1.0rem;
+    }
+}
+
+.files {
+  margin-top: 1.0rem;
+}
+
+.file-image {
+  max-width: 300px;
+  border-radius: 4px;
+  margin-top: 4px;
+  font-size: 0.85rem;
+  color: $subTextColor;
+}
+
+.file-link {
+  color: $ankerColor;
+  text-decoration: none;
+}
+
+.thread {
+  margin-top: 8px;
+  border-left: 2px solid $borderColor;
+  padding-left: 12px;
+  .toggle-thread{
+    font-weight: bold;
+    color: #1264a3;
+    text-decoration: underline;
+    background-color: transparent;
+  }
+}
+
+.reply {
+  margin-top: 4px;
+  font-size: 0.9em;
+  .reply-time{
+    color: $subTextColor;
+    font-size: 0.85rem;
+  }
+  .reply-user{
+    @extend .mention;
+  }
+}
+
+.reactions {
+  margin-top: 4px;
+}
+
+.reaction {
+  padding: 0.1rem 0.5rem;
+  margin-right: 4px;
+  font-size: 0.85em;
+  border-radius: 4px;
+  background-color: #efefef;
+  vertical-align: bottom;
+}
+
+.mention {
+  background-color: #e6f3ff;
+  color: #1264a3;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.channel-mention {
+  background-color: #f3f3f3;
+  color: $textColor;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+.emoji {
+  width: 1rem;
+  height: 1rem;
+  padding: 0.1rem;
+}

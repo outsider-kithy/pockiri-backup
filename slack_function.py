@@ -7,7 +7,12 @@ from flask import render_template
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from datetime import datetime
-import markdown2
+from dotenv import load_dotenv
+
+# OSの環境変数や引数で環境を指定
+env_mode = os.getenv("ENV_MODE", "development")
+dotenv_file = f".env.{env_mode}"
+load_dotenv(dotenv_path=dotenv_file)
 
 slack = WebClient(token=os.getenv("SLACK_BOT_TOKEN"))
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
@@ -37,6 +42,30 @@ def save_joined_channels(joined_channels):
     joined_channels = list(set(joined_channels))
     with open(JOINED_CHANNELS_FILE, "w", encoding="utf-8") as f:
         json.dump(joined_channels, f, ensure_ascii=False, indent=2)
+
+
+# Slackの絵文字一覧を取得
+def get_emoji_map():
+    try:
+        response = slack.emoji_list()
+        emoji_map = response["emoji"]
+        return emoji_map  # 例: {"uoo": "https://emoji.slack-edge.com/T123/uoo/abcd.png", "party": "https://..."}
+    except SlackApiError as e:
+        print(f"⚠️ Failed to fetch emoji list: {e.response['error']}")
+        return {}
+
+# 絵文字を画像に変換
+def replace_emoji(text, emoji_map):
+    def repl(match):
+        name = match.group(1)
+        url = emoji_map.get(name)
+        if url:
+            # カスタム絵文字画像を表示
+            return f'<img src="{url}" alt=":{name}:" class="emoji">'
+        else:
+            # 標準絵文字ならUnicodeのまま表示
+            return f":{name}:"
+    return re.sub(r":([a-zA-Z0-9_\-\+]+):", repl, text)
 
 # チャンネルに投稿されたファイルをダウンロード・保存
 def download_file(url, dest_path, headers=None):
@@ -90,6 +119,7 @@ def fetch_all_channel_histories():
 
     user_map = get_user_map()
     channel_map = get_channel_map()
+    emoji_map = get_emoji_map() 
     joined_channels = load_joined_channels()
     user_cache = {}
     all_histories = []
@@ -166,11 +196,34 @@ def fetch_all_channel_histories():
                     raw_text = msg.get("text", "")
                     # 🔽 メンションやチャンネル名を置換
                     text_html = replace_mentions(raw_text, user_map, channel_map)
+                    # 絵文字を画像に変換
+                    text_html = replace_emoji(text_html, emoji_map)
                     text_html = text_html.replace("\n", "<br>")
+
+                    # -- アバター -- #
+                    today = datetime.now().strftime("%Y-%m-%d")
+                    avatar_dir = os.path.join(ARCHIVE_ROOT, today, "avatar")
+
+                    if user_id in user_cache:
+                        user_name, user_icon_url = user_cache[user_id]
+                    else:
+                        user_icon_url = "/static/img/default_avatar.png"
+
+                    if user_icon_url.startswith("http"):
+                        avatar_filename = f"{user_id}.png"
+                        avatar_dest = os.path.join(avatar_dir, avatar_filename)
+                        headers = {"Authorization": f"Bearer {SLACK_BOT_TOKEN}"}
+                        success = download_file(user_icon_url, avatar_dest, headers=headers)
+                        if success:
+                            print(f"✅ Downloaded avatar for {user_name} ({user_id})")
+                            user_icon = os.path.join("avatar", avatar_filename)
+                        else:
+                            user_icon = "/static/img/default_avatar.png"
+                    else:
+                        user_icon = user_icon_url
 
                     # --- 添付ファイル --- #
                     files = []
-                    today = datetime.now().strftime("%Y-%m-%d")
                     if "files" in msg:
                         for f in msg.get("files", []):
                             filename = f.get("name")
@@ -200,12 +253,17 @@ def fetch_all_channel_histories():
 
                     # --- リアクション --- #
                     reactions = []
-                    if "reactions" in msg:
-                        for r in msg["reactions"]:
-                            reactions.append({
-                                "name": r.get("name"),
-                                "count": r.get("count")
-                            })
+                    for r in msg.get("reactions", []):
+                        name = r.get("name")
+                        if name in emoji_map:
+                            emoji_html = f'<img src="{emoji_map[name]}" alt=":{name}:" class="emoji">'
+                        else:
+                            emoji_html = f":{name}:"
+
+                        reactions.append({
+                            "emoji_html": emoji_html,
+                            "count": r.get("count")
+                        })
 
                     # --- スレッド（リプライ）取得 --- #
                     replies = []

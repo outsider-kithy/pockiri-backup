@@ -1,0 +1,52 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    list-style: none;
+    text-decoration: none;
+  }
+
+
+  html,
+  body {
+    line-height: normal;
+    overflow-x: hidden;
+  }
+
+  a {
+    color: #000;
+    text-decoration: none;
+    &:hover {
+      color: #000;
+    }
+    &:active {
+      color: #000;
+    }
+    &:visited {
+      color: #000;
+    }
+  }
+
+  img {
+    image-rendering: -webkit-optimize-contrast;
+    max-width: 100%;
+    vertical-align: top;
+  }
+  input,
+  button {
+    box-sizing: border-box;
+    border: none;
+    outline: none;
+  }
+  textarea {
+    box-sizing: border-box;
+    border: none;
+    outline: none;
+  }
+  select {
+    border: none;
+    outline: none;
+  }
+  table {
+    display: block;
+  }
