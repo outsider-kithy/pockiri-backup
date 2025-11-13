@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <title>#{{ channel_name }} - Slack Archive</title>
-  <link rel="stylesheet" href="../assets/slack_style.css" />
-  <script src="../assets/script.js"></script>
+  <link rel="stylesheet" href="../assets/css/slack_style.css" />
+  <script src="../assets/js/script.js"></script>
 </head>
 <body>
   <header>
@@ -23,9 +23,9 @@
         <h2>#{{ channel_name }}</h2>
         {% for msg in messages %}
         <div class="message">
-          <img src="{{ msg.user_icon }}" class="avatar">
           <div class="content">
             <div class="meta">
+              <img src="{{ msg.user_icon }}" class="avatar">
               <span class="user">{{ msg.user_name }}</span>
               <span class="timestamp">{{ msg.timestamp }}</span>
             </div>
