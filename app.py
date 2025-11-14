@@ -1,5 +1,7 @@
 import os
+import json
 from flask import Flask, send_from_directory, abort
+from flask_httpauth import HTTPBasicAuth
 from slack_sdk import WebClient
 from jinja2 import Environment, FileSystemLoader
 from dotenv import load_dotenv
@@ -14,6 +16,21 @@ load_dotenv(dotenv_path=dotenv_file)
 
 app = Flask(__name__)
 slack = WebClient(token=os.getenv("SLACK_BOT_TOKEN"))
+
+# BASIC認証
+auth = HTTPBasicAuth()
+
+def load_users():
+    with open("users.json", "r", encoding="utf-8") as f:
+        return json.load(f)
+
+users = load_users()
+
+@auth.get_password
+def get_pw(username):
+    if username in users:
+        return users.get(username)
+    return None
 
 ARCHIVE_DOMAIN = os.getenv("ARCHIVE_DOMAIN")
 ARCHIVE_ROOT = os.getenv("ARCHIVE_ROOT")
@@ -84,6 +101,7 @@ def capture_channels():
 
 # /archiveルート
 @app.route("/archive", strict_slashes=True)
+@auth.login_required
 def archive_root():
     if not os.path.exists(ARCHIVE_ROOT):
         return "<h1>アーカイブが存在しません</h1>", 404
@@ -95,12 +113,13 @@ def archive_root():
     # HTMLを簡易生成（クリックで各日付ページへ）
     html = "<h1>アーカイブ一覧</h1><ul>"
     for date in dates:
-        html += f'<li><a href="/archive/{date}/">{date}</a></li>'
+        html += f'<li><a href="/archive/{date}">{date}</a></li>'
     html += "</ul>"
     return html
 
 # /archive/YYYY-mm-ddルート（チャンネル一覧）
 @app.route("/archive/<date>", strict_slashes=True)
+@auth.login_required
 def archive_index(date):
     archive_dir = os.path.join(ARCHIVE_ROOT, date)
     if not os.path.exists(archive_dir):
@@ -116,6 +135,7 @@ def archive_index(date):
 
 # /archive/YYYY-mm-dd/channelルート（チャンネル詳細）
 @app.route("/archive/<date>/<path:filename>", strict_slashes=True)
+@auth.login_required
 def serve_archive(date, filename):
     archive_dir = os.path.join(ARCHIVE_ROOT, date)
     if not os.path.exists(archive_dir):
