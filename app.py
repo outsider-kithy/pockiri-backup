@@ -19,6 +19,8 @@ ARCHIVE_DOMAIN = os.getenv("ARCHIVE_DOMAIN")
 ARCHIVE_ROOT = os.getenv("ARCHIVE_ROOT")
 REPORT_CHANNEL_ID = os.getenv("REPORT_CHANNEL_ID")
 
+PORT = os.getenv("PORT")
+
 # Jinja2環境設定
 env = Environment(loader=FileSystemLoader("templates"))
 template = env.get_template("slack_view.html")
@@ -122,4 +124,4 @@ def serve_archive(date, filename):
 
 # 起動
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    app.run(host="0.0.0.0", port=int(PORT))
