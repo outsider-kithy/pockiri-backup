@@ -100,6 +100,7 @@ def capture_channels():
 
 # /viewルート
 @app.route("/view")
+@auth.login_required
 def view_list():
     client = storage.Client()
 
@@ -129,6 +130,7 @@ def view_list():
 
 # /view/YYYY-mm-dd ルート
 @app.route("/view/<date>", methods=["GET"])
+@auth.login_required
 def view_date(date):
     client = storage.Client()
     bucket = client.bucket(BUCKET_NAME)
