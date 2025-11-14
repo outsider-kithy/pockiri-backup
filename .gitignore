@@ -14,4 +14,4 @@ __pycache__
 .env.production
 .env.development
 archive
-joined_channels.json
+slack-bot-464701-a39f504b3fa5.json

@@ -8,6 +8,7 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from datetime import datetime
 from dotenv import load_dotenv
+from google.cloud import storage
 
 # OSの環境変数や引数で環境を指定
 env_mode = os.getenv("ENV_MODE", "development")
@@ -17,6 +18,18 @@ load_dotenv(dotenv_path=dotenv_file)
 slack = WebClient(token=os.getenv("SLACK_BOT_TOKEN"))
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 ARCHIVE_ROOT = "archive"
+
+# Cloud Storage設定
+BUCKET_NAME = os.getenv("BUCKET_NAME")
+JOINED_CHANNELS_FILE = os.getenv("JOINED_CHANNELS_FILE")
+# ローカル開発時のみキーを使う
+credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+if credentials_path and os.path.exists(credentials_path):
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+    print(f"[INFO] Using local credentials from {credentials_path}")
+else:
+    print("[INFO] Using default Cloud credentials (Cloud Run mode)")
+storage_client = storage.Client()
 
 # ユーザーidとユーザー名の辞書を作成
 def get_user_map():
@@ -28,21 +41,34 @@ def get_channel_map():
     channels = slack.conversations_list(limit=100)["channels"]
     return {c["id"]: c["name"] for c in channels}
 
-# Botが参加済みのチャンネルを保持
-JOINED_CHANNELS_FILE = "joined_channels.json"
+# Cloud Storageにjoined_channels.jsonを保存
+def save_joined_channels_to_gcs(joined_channels):
+    bucket = storage_client.bucket(BUCKET_NAME)
+    blob = bucket.blob(JOINED_CHANNELS_FILE)
+    blob.upload_from_string(
+        json.dumps(joined_channels, ensure_ascii=False, indent=2),
+        content_type="application/json"
+    )
+    print(f"{JOINED_CHANNELS_FILE} を GCS に保存しました")
 
-def load_joined_channels():
-    """以前に参加済みのチャンネルIDリストをJSONファイルから読み込む"""
-    if os.path.exists(JOINED_CHANNELS_FILE):
-        with open(JOINED_CHANNELS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+def load_joined_channels_from_gcs():
+    bucket = storage_client.bucket(BUCKET_NAME)
+    blob = bucket.blob(JOINED_CHANNELS_FILE)
+    if blob.exists():
+        data = blob.download_as_text()
+        return json.loads(data)
     return []
 
-def save_joined_channels(joined_channels):
-    joined_channels = list(set(joined_channels))
-    with open(JOINED_CHANNELS_FILE, "w", encoding="utf-8") as f:
-        json.dump(joined_channels, f, ensure_ascii=False, indent=2)
-
+#GCSのJSONファイルを空にする
+def clear_joined_channels_in_gcs(bucket_name, blob_name):
+    try:
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        blob.upload_from_string(json.dumps([], ensure_ascii=False, indent=2), content_type="application/json")
+        print(f"{blob_name} を空にしました")
+    except Exception as e:
+        print(f"GCSクリア失敗: {e}")
 
 # Slackの絵文字一覧を取得
 def get_emoji_map():
@@ -120,7 +146,7 @@ def fetch_all_channel_histories():
     user_map = get_user_map()
     channel_map = get_channel_map()
     emoji_map = get_emoji_map() 
-    joined_channels = load_joined_channels()
+    joined_channels = load_joined_channels_from_gcs()
     user_cache = {}
     all_histories = []
 
@@ -316,7 +342,7 @@ def fetch_all_channel_histories():
     except SlackApiError as e:
         print(f"❌ conversations.list failed: {e.response['error']}")
 
-    save_joined_channels(joined_channels)
+    save_joined_channels_to_gcs(joined_channels)
     return all_histories
 
 

@@ -69,7 +69,7 @@ def capture_channels():
 
 
 # /archiveルート
-@app.route("/archive")
+@app.route("/archive/")
 def archive_root():
     if not os.path.exists(ARCHIVE_ROOT):
         return "<h1>アーカイブが存在しません</h1>", 404
@@ -86,7 +86,7 @@ def archive_root():
     return html
 
 # /archive/YYYY-mm-ddルート（チャンネル一覧）
-@app.route("/archive/<date>")
+@app.route("/archive/<date>/")
 def archive_index(date):
     archive_dir = os.path.join(ARCHIVE_ROOT, date)
     if not os.path.exists(archive_dir):
@@ -101,9 +101,13 @@ def archive_index(date):
     return html
 
 # /archive/YYYY-mm-dd/channelルート（チャンネル詳細）
-@app.route("/archive/<date>/<path:filename>")
+@app.route("/archive/<date>/<path:filename>/")
 def serve_archive(date, filename):
     archive_dir = os.path.join(ARCHIVE_ROOT, date)
     if not os.path.exists(archive_dir):
         abort(404)
     return send_from_directory(archive_dir, filename)
+
+# 起動
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)
