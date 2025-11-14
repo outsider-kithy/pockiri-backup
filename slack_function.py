@@ -17,7 +17,7 @@ load_dotenv(dotenv_path=dotenv_file)
 
 slack = WebClient(token=os.getenv("SLACK_BOT_TOKEN"))
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
-ARCHIVE_ROOT = "archive"
+ARCHIVE_ROOT = os.getenv("ARCHIVE_ROOT")
 
 # Cloud Storage設定
 BUCKET_NAME = os.getenv("BUCKET_NAME")
