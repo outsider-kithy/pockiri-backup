@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <title>#{{ channel_name }} - Slack Archive</title>
   <link rel="icon" href="{{ url_for('static',filename='img/favicon.ico') }}">
-  <link rel="stylesheet" href="{{ url_for('static',filename='css/slack_style.css') }}">
-  <script src="{{ url_for('static',filename='js/script.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/slack_style.css')}}">
+  <script src="{{ url_for('static', filename='js/script.js')}}"></script>
 </head>
 <body>
   <header>
@@ -15,7 +15,7 @@
       <div class="channels">
         <ul>
           {% for channel in channels %}
-          <li><a href="/archive/{{ date }}/{{ channel.name }}.html">#{{ channel.name }}</a></li>
+          <li><a href="/view/{{ date }}/{{ channel.name }}.html">#{{ channel.name }}</a></li>
           {% endfor %}
         </ul>
       </div>

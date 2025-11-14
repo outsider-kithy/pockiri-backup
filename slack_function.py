@@ -108,12 +108,21 @@ def download_file(url, dest_path, headers=None):
     return False
 
 
+# ダウンロードした画像をGCSにアップロード
+def download_file_then_upload(url, dest_path, bucket_name, gcs_path, headers=None):
+    # 1. ローカルの /tmp に download_file() で保存
+    tmp_path = f"/tmp/{os.path.basename(dest_path)}"
+    download_file(url, tmp_path, headers=headers)
+
+    # 2. GCS にアップロード
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(gcs_path)
+    blob.upload_from_filename(tmp_path)
+
+
 # 取得したチャンネルの情報をHTMLに出力
 def export_channel_to_html(channel_id, channel_name, workspace, channels, archive_dir, all_histories):
-    """
-    チャンネル履歴を取得してHTML出力。
-    all_histories: fetch_all_channel_histories() の戻り値
-    """
 
     # --- 今回のチャンネルのメッセージを抽出 ---
     messages = []
@@ -132,11 +141,15 @@ def export_channel_to_html(channel_id, channel_name, workspace, channels, archiv
         date=datetime.now().strftime("%Y-%m-%d"),
     )
 
-    filepath = f"{archive_dir}/{channel_name}.html"
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.write(html)
+    # --- 置き換え後（GCS 保存） ---
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    object_name = f"{date_str}/{channel_name}.html"
 
-    print(f"📝 Exported {filepath}")
+    bucket = storage.Client().bucket(BUCKET_NAME)
+    blob = bucket.blob(object_name)
+    blob.upload_from_string(html, content_type="text/html; charset=utf-8")
+
+    print(f"📝 Exported to GCS: gs://{BUCKET_NAME}/{object_name}")
 
 
 
@@ -145,7 +158,7 @@ def fetch_all_channel_histories():
 
     user_map = get_user_map()
     channel_map = get_channel_map()
-    emoji_map = get_emoji_map() 
+    emoji_map = get_emoji_map()
     joined_channels = load_joined_channels_from_gcs()
     user_cache = {}
     all_histories = []
@@ -195,7 +208,7 @@ def fetch_all_channel_histories():
             # --- 3. 履歴を取得 ---
             try:
                 history_response = slack.conversations_history(channel=channel_id, limit=10)
-                time.sleep(1) 
+                time.sleep(1)
                 messages = history_response["messages"]
                 formatted = []
 
@@ -228,7 +241,7 @@ def fetch_all_channel_histories():
 
                     # -- アバター -- #
                     today = datetime.now().strftime("%Y-%m-%d")
-                    avatar_dir = os.path.join(ARCHIVE_ROOT, today, "avatar")
+                    avatar_dir = os.path.join(today, "avatar")
 
                     if user_id in user_cache:
                         user_name, user_icon_url = user_cache[user_id]
@@ -239,12 +252,12 @@ def fetch_all_channel_histories():
                         avatar_filename = f"{user_id}.png"
                         avatar_dest = os.path.join(avatar_dir, avatar_filename)
                         headers = {"Authorization": f"Bearer {SLACK_BOT_TOKEN}"}
-                        success = download_file(user_icon_url, avatar_dest, headers=headers)
-                        if success:
-                            print(f"✅ Downloaded avatar for {user_name} ({user_id})")
-                            user_icon = os.path.join("avatar", avatar_filename)
-                        else:
-                            user_icon = "/static/img/default_avatar.png"
+                        success = download_file_then_upload(user_icon_url, avatar_dest, BUCKET_NAME, avatar_filename, headers=headers)
+                        # if success:
+                        #     print(f"✅ Downloaded avatar for {user_name} ({user_id})")
+                        #     user_icon = os.path.join("avatar", avatar_filename)
+                        # else:
+                        #     user_icon = "/static/img/default_avatar.png"
                     else:
                         user_icon = user_icon_url
 
@@ -261,20 +274,20 @@ def fetch_all_channel_histories():
 
                             # ファイルをダウンロード
                             # 保存先パス（例: archive/YYYY-MM-DD/media/<channel_name>/<filename>）
-                            dest_path = os.path.join(ARCHIVE_ROOT, today, "media", channel_id, filename)
-                            success = download_file(url_private, dest_path, headers=headers)
-                            
-                            if success:
-                                print(f"✅ Downloaded {filename} to {dest_path}")
-                            else:
-                                print(f"⚠️ Failed to download {filename}")
+                            dest_path = os.path.join(today, "media", channel_id, filename)
+                            # success = download_file_then_upload(url_private, dest_path, BUCKET_NAME, filename, headers=headers)
+
+                            # if success:
+                            #     print(f"✅ Downloaded {filename} to {dest_path}")
+                            # else:
+                            #     print(f"⚠️ Failed to download {filename}")
 
                             # ファイル情報に local_path を追加してテンプレートで利用
                             files.append({
                                 "name": filename,
                                 "mimetype": mimetype,
                                 "url_private": url_private,
-                                "local_path": os.path.join("media", channel_id, filename),  
+                                "local_path": os.path.join("media", channel_id, filename),
                             })
 
                     # --- リアクション --- #
@@ -296,7 +309,7 @@ def fetch_all_channel_histories():
                     if "reply_count" in msg and "thread_ts" in msg and msg["reply_count"] <= 5:
                         try:
                             thread_resp = slack.conversations_replies(channel=channel_id, ts=msg["thread_ts"])
-                            time.sleep(1) 
+                            time.sleep(1)
                             for reply in thread_resp["messages"][1:]:  # 0番目は親メッセージ
                                 r_user = reply.get("user")
                                 r_user_name = "Unknown"

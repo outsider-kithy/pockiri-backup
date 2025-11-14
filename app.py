@@ -1,6 +1,6 @@
 import os
 import json
-from flask import Flask, send_from_directory, abort
+from flask import Flask, send_from_directory, abort, request, Response
 from flask_httpauth import HTTPBasicAuth
 from slack_sdk import WebClient
 from jinja2 import Environment, FileSystemLoader
@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from slack_sdk.errors import SlackApiError
 from slack_function import export_channel_to_html, fetch_all_channel_histories
 from datetime import datetime
+from google.cloud import storage
 
 # OSの環境変数や引数で環境を指定
 env_mode = os.getenv("ENV_MODE", "development")
@@ -36,6 +37,8 @@ ARCHIVE_DOMAIN = os.getenv("ARCHIVE_DOMAIN")
 ARCHIVE_ROOT = os.getenv("ARCHIVE_ROOT")
 REPORT_CHANNEL_ID = os.getenv("REPORT_CHANNEL_ID")
 
+BUCKET_NAME = os.getenv("BUCKET_NAME")
+
 PORT = os.getenv("PORT")
 
 # Jinja2環境設定
@@ -50,10 +53,10 @@ def capture_channels():
     # --- 日付ディレクトリを準備 --- #
     date_str = datetime.now().strftime("%Y-%m-%d")
     archive_dir = f'archive/{date_str}'
-    os.makedirs(f"{archive_dir}/avatar", exist_ok=True)
-    os.makedirs(f"{archive_dir}/media", exist_ok=True)
+    # os.makedirs(f"{archive_dir}/avatar", exist_ok=True)
+    # os.makedirs(f"{archive_dir}/media", exist_ok=True)
 
-    ARCHIVE_URL = os.path.join(ARCHIVE_DOMAIN, archive_dir)
+    ARCHIVE_URL = os.getenv("ARCHIVE_URL")
 
     # --- ワークスペース情報を取得 --- #
     workspace_info = slack.team_info()
@@ -93,54 +96,69 @@ def capture_channels():
 
     slack.chat_postMessage(
         channel=REPORT_CHANNEL_ID,
-        text=f"過去90日の履歴をバックアップしました。\n {ARCHIVE_URL} で閲覧できます。"
+        text=f"過去90日の履歴をバックアップしました。\n {ARCHIVE_DOMAIN}view/{date_str}/general.html で閲覧できます。"
     )
 
     return "Archived."
 
 
 # /archiveルート
-@app.route("/archive", strict_slashes=True)
-@auth.login_required
-def archive_root():
-    if not os.path.exists(ARCHIVE_ROOT):
-        return "<h1>アーカイブが存在しません</h1>", 404
+# @app.route("/archive", strict_slashes=True)
+# # @auth.login_required
+# def archive_root():
+#     if not os.path.exists(ARCHIVE_ROOT):
+#         return "<h1>アーカイブが存在しません</h1>", 404
 
-    # archive/ 内のディレクトリを取得
-    dates = [d for d in os.listdir(ARCHIVE_ROOT) if os.path.isdir(os.path.join(ARCHIVE_ROOT, d))]
-    dates.sort(reverse=True)  # 新しい順に表示
+#     # archive/ 内のディレクトリを取得
+#     dates = [d for d in os.listdir(ARCHIVE_ROOT) if os.path.isdir(os.path.join(ARCHIVE_ROOT, d))]
+#     dates.sort(reverse=True)  # 新しい順に表示
 
-    # HTMLを簡易生成（クリックで各日付ページへ）
-    html = "<h1>アーカイブ一覧</h1><ul>"
-    for date in dates:
-        html += f'<li><a href="/archive/{date}">{date}</a></li>'
-    html += "</ul>"
-    return html
+#     # HTMLを簡易生成（クリックで各日付ページへ）
+#     html = "<h1>アーカイブ一覧</h1><ul>"
+#     for date in dates:
+#         html += f'<li><a href="/archive/{date}">{date}</a></li>'
+#     html += "</ul>"
+#     return html
 
 # /archive/YYYY-mm-ddルート（チャンネル一覧）
-@app.route("/archive/<date>", strict_slashes=True)
-@auth.login_required
-def archive_index(date):
-    archive_dir = os.path.join(ARCHIVE_ROOT, date)
-    if not os.path.exists(archive_dir):
-        return f"<h1>{date} のアーカイブは存在しません</h1>", 404
+# @app.route("/archive/<date>", strict_slashes=True)
+# # @auth.login_required
+# def archive_index(date):
+#     archive_dir = os.path.join(ARCHIVE_ROOT, date)
+#     if not os.path.exists(archive_dir):
+#         return f"<h1>{date} のアーカイブは存在しません</h1>", 404
 
-    # ディレクトリ内のHTMLファイルをリスト化
-    files = [f for f in os.listdir(archive_dir) if f.endswith(".html")]
-    html = "<h1>{}のアーカイブ</h1><ul>".format(date)
-    for f in files:
-        html += f'<li><a href="/archive/{date}/{f}">{f}</a></li>'
-    html += "</ul>"
-    return html
+#     # ディレクトリ内のHTMLファイルをリスト化
+#     files = [f for f in os.listdir(archive_dir) if f.endswith(".html")]
+#     html = "<h1>{}のアーカイブ</h1><ul>".format(date)
+#     for f in files:
+#         html += f'<li><a href="/archive/{date}/{f}">{f}</a></li>'
+#     html += "</ul>"
+#     return html
 
 # /archive/YYYY-mm-dd/channelルート（チャンネル詳細）
-@app.route("/archive/<date>/<path:filename>", strict_slashes=True)
+# @app.route("/archive/<date>/<path:filename>", strict_slashes=True)
+# # @auth.login_required
+# def serve_archive(date, filename):
+#     archive_dir = os.path.join(ARCHIVE_ROOT, date)
+#     if not os.path.exists(archive_dir):
+#         abort(404)
+#     return send_from_directory(archive_dir, filename)
+
+
+# /viewルート
+@app.route("/view/<path:object_name>",  strict_slashes=True)
 @auth.login_required
-def serve_archive(date, filename):
-    archive_dir = os.path.join(ARCHIVE_ROOT, date)
-    if not os.path.exists(archive_dir):
-        abort(404)
-    return send_from_directory(archive_dir, filename)
+def view_file(object_name):
+
+    # GCS から該当ファイルを取得
+    client = storage.Client()
+    bucket = client.bucket(BUCKET_NAME)
+    blob = bucket.blob(object_name)
+
+    html = blob.download_as_text()
+
+    return Response(html, mimetype="text/html")
 
 # 起動
 if __name__ == "__main__":
