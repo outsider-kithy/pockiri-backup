@@ -132,33 +132,6 @@ def download_file_to_gcs(url, bucket_name, gcs_object_path, headers=None):
         print(f"❌ GCS upload failed: {e}")
         return False
 
-# チャンネルに投稿されたファイルをダウンロード・保存
-# def download_file(url, dest_path, headers=None):
-#     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-#     try:
-#         r = requests.get(url, headers=headers, stream=True)
-#         if r.status_code == 200:
-#             with open(dest_path, "wb") as f:
-#                 for chunk in r.iter_content(1024):
-#                     f.write(chunk)
-#             return True
-#     except Exception as e:
-#         print(f"❌ Failed to download {url}: {e}")
-#     return False
-
-
-# ダウンロードした画像をGCSにアップロード
-# def download_file_then_upload(url, dest_path, bucket_name, gcs_path, headers=None):
-#     # 1. ローカルの /tmp に download_file() で保存
-#     tmp_path = f"/tmp/{os.path.basename(dest_path)}"
-#     download_file(url, tmp_path, headers=headers)
-
-#     # 2. GCS にアップロード
-#     client = storage.Client()
-#     bucket = client.bucket(bucket_name)
-#     blob = bucket.blob(gcs_path)
-#     blob.upload_from_filename(tmp_path)
-
 
 # 取得したチャンネルの情報をHTMLに出力
 def export_channel_to_html(channel_id, channel_name, workspace, channels, archive_dir, all_histories):
@@ -189,7 +162,6 @@ def export_channel_to_html(channel_id, channel_name, workspace, channels, archiv
     blob.upload_from_string(html, content_type="text/html; charset=utf-8")
 
     print(f"📝 Exported to GCS: gs://{BUCKET_NAME}/{object_name}")
-
 
 
 # すべてのチャンネルの履歴を取得
