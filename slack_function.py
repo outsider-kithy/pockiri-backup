@@ -21,6 +21,7 @@ ARCHIVE_ROOT = os.getenv("ARCHIVE_ROOT")
 ARCHIVE_DOMAIN = os.getenv("ARCHIVE_DOMAIN")
 
 # Cloud Storage設定
+STORAGE_DOMAIN=os.getenv("STORAGE_DOMAIN")
 BUCKET_NAME = os.getenv("BUCKET_NAME")
 JOINED_CHANNELS_FILE = os.getenv("JOINED_CHANNELS_FILE")
 # ローカル開発時のみキーを使う
@@ -252,7 +253,7 @@ def fetch_all_channel_histories():
 
                     # -- アバター -- #
                     today = datetime.now().strftime("%Y-%m-%d")
-            
+
                     if user_id in user_cache:
                         user_name, user_icon_url = user_cache[user_id]
                     else:
@@ -265,7 +266,7 @@ def fetch_all_channel_histories():
                         success = download_file_to_gcs(user_icon_url, BUCKET_NAME, gcs_object_path, headers=headers)
                         if success:
                             print(f"✅ Downloaded avatar for {user_name} ({user_id})")
-                            user_icon = os.path.join(ARCHIVE_DOMAIN, today, "avatar", avatar_filename)
+                            user_icon = os.path.join(STORAGE_DOMAIN, BUCKET_NAME, today, "avater", avatar_filename)
                         else:
                             user_icon = "/static/img/default_avatar.png"
                     else:
@@ -278,7 +279,7 @@ def fetch_all_channel_histories():
                             filename = f.get("name")
                             mimetype = f.get("mimetype")
                             url_private = f.get("url_private")
-                            url_public = os.path.join(ARCHIVE_DOMAIN, today, "media", channel_id, filename)
+                            url_public = os.path.join(STORAGE_DOMAIN, BUCKET_NAME, today, "media", channel_id, filename)
 
                             # Slack APIトークンを認証ヘッダーとして渡す
                             headers = {"Authorization": f"Bearer {SLACK_BOT_TOKEN}"}

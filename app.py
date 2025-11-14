@@ -54,7 +54,7 @@ def capture_channels():
     # --- 日付ディレクトリを準備 --- #
     date_str = datetime.now().strftime("%Y-%m-%d")
     archive_dir = f'archive/{date_str}'
-    
+
     # --- ワークスペース情報を取得 --- #
     workspace_info = slack.team_info()
     workspace = workspace_info["team"]["name"]
