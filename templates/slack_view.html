@@ -36,9 +36,9 @@
             <div class="files">
               {% for f in msg.files %}
                 {% if "image" in f.mimetype %}
-                  <img src="{{ f.local_path }}" alt="{{ f.name }}" class="file-image">
+                  <img src="{{ f.url_public }}" alt="{{ f.name }}" class="file-image">
                 {% else %}
-                  <a href="{{ f.local_path }}" class="file-link" download>{{ f.name }}</a>
+                  <a href="{{ f.url_public }}" class="file-link" download>{{ f.name }}</a>
                 {% endif %}
               {% endfor %}
             </div>

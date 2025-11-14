@@ -22,6 +22,6 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
 
 ```sh
 # 開発環境
-curl -X GET http://127.0.0.1:8080/capture
+curl -X POST http://127.0.0.1:8080/capture
 
 ```

@@ -1,6 +1,7 @@
 import os
+import re
 import json
-from flask import Flask, send_from_directory, abort, request, Response
+from flask import Flask, Response, url_for
 from flask_httpauth import HTTPBasicAuth
 from slack_sdk import WebClient
 from jinja2 import Environment, FileSystemLoader
@@ -46,18 +47,14 @@ env = Environment(loader=FileSystemLoader("templates"))
 template = env.get_template("slack_view.html")
 
 # /captureルート
-@app.route("/capture", methods=["GET"])
+@app.route("/capture", methods=["POST"])
 def capture_channels():
     """全チャンネルを自動参加 → 履歴取得 → HTML書き出し"""
 
     # --- 日付ディレクトリを準備 --- #
     date_str = datetime.now().strftime("%Y-%m-%d")
     archive_dir = f'archive/{date_str}'
-    # os.makedirs(f"{archive_dir}/avatar", exist_ok=True)
-    # os.makedirs(f"{archive_dir}/media", exist_ok=True)
-
-    ARCHIVE_URL = os.getenv("ARCHIVE_URL")
-
+    
     # --- ワークスペース情報を取得 --- #
     workspace_info = slack.team_info()
     workspace = workspace_info["team"]["name"]
@@ -96,57 +93,75 @@ def capture_channels():
 
     slack.chat_postMessage(
         channel=REPORT_CHANNEL_ID,
-        text=f"過去90日の履歴をバックアップしました。\n {ARCHIVE_DOMAIN}view/{date_str}/general.html で閲覧できます。"
+        text=f"過去90日の履歴をバックアップしました。\n {ARCHIVE_DOMAIN}view/{date_str} で閲覧できます。"
     )
 
     return "Archived."
 
-
-# /archiveルート
-# @app.route("/archive", strict_slashes=True)
-# # @auth.login_required
-# def archive_root():
-#     if not os.path.exists(ARCHIVE_ROOT):
-#         return "<h1>アーカイブが存在しません</h1>", 404
-
-#     # archive/ 内のディレクトリを取得
-#     dates = [d for d in os.listdir(ARCHIVE_ROOT) if os.path.isdir(os.path.join(ARCHIVE_ROOT, d))]
-#     dates.sort(reverse=True)  # 新しい順に表示
-
-#     # HTMLを簡易生成（クリックで各日付ページへ）
-#     html = "<h1>アーカイブ一覧</h1><ul>"
-#     for date in dates:
-#         html += f'<li><a href="/archive/{date}">{date}</a></li>'
-#     html += "</ul>"
-#     return html
-
-# /archive/YYYY-mm-ddルート（チャンネル一覧）
-# @app.route("/archive/<date>", strict_slashes=True)
-# # @auth.login_required
-# def archive_index(date):
-#     archive_dir = os.path.join(ARCHIVE_ROOT, date)
-#     if not os.path.exists(archive_dir):
-#         return f"<h1>{date} のアーカイブは存在しません</h1>", 404
-
-#     # ディレクトリ内のHTMLファイルをリスト化
-#     files = [f for f in os.listdir(archive_dir) if f.endswith(".html")]
-#     html = "<h1>{}のアーカイブ</h1><ul>".format(date)
-#     for f in files:
-#         html += f'<li><a href="/archive/{date}/{f}">{f}</a></li>'
-#     html += "</ul>"
-#     return html
-
-# /archive/YYYY-mm-dd/channelルート（チャンネル詳細）
-# @app.route("/archive/<date>/<path:filename>", strict_slashes=True)
-# # @auth.login_required
-# def serve_archive(date, filename):
-#     archive_dir = os.path.join(ARCHIVE_ROOT, date)
-#     if not os.path.exists(archive_dir):
-#         abort(404)
-#     return send_from_directory(archive_dir, filename)
-
-
 # /viewルート
+@app.route("/view")
+def view_list():
+    client = storage.Client()
+
+    # archive 下のオブジェクト一覧を取得
+    blobs = client.list_blobs(BUCKET_NAME)
+
+    # YYYY-mm-dd に一致するフォルダ名を抽出
+    date_dirs = set()
+
+    pattern = re.compile(r"(\d{4}-\d{2}-\d{2})/")
+
+    for blob in blobs:
+        m = pattern.match(blob.name)
+        if m:
+            date_dirs.add(m.group(1))
+
+    # ソート（新しい日付が上）
+    sorted_dates = sorted(date_dirs, reverse=True)
+
+    # HTML生成
+    html = "<h1>バックアップ一覧</h1><ul>"
+    for d in sorted_dates:
+        html += f'<li><a href="/view/{d}">{d}</a></li>'
+    html += "</ul>"
+
+    return Response(html, mimetype="text/html")
+
+# /view/YYYY-mm-dd ルート
+@app.route("/view/<date>", methods=["GET"])
+def view_date(date):
+    client = storage.Client()
+    bucket = client.bucket(BUCKET_NAME)
+
+    # 例: "2025-11-14"
+    prefix = f"{date}/"
+    blobs = list(bucket.list_blobs(prefix=prefix))
+
+    # .html のみ抽出
+    html_files = [b.name for b in blobs if b.name.endswith(".html")]
+
+    if not html_files:
+        return f"<h2>{date} のHTMLファイルはありません</h2>"
+
+    # シンプルなHTML生成
+    links = []
+    for file_name in html_files:
+        # /view/<path> 側の既存のビューアにリンクさせる
+        url = url_for("view_file", object_name=file_name)
+        links.append(f'<li><a href="{url}">{file_name}</a></li>')
+
+    html = f"""
+        <h2>{date} のアーカイブ一覧</h2>
+        <ul>
+            {''.join(links)}
+        </ul>
+        <p><a href="/view">← 日付一覧に戻る</a></p>
+    """
+
+    return html
+
+
+# /view/YYYY-mm-dd/hoge.html ルート
 @app.route("/view/<path:object_name>",  strict_slashes=True)
 @auth.login_required
 def view_file(object_name):
