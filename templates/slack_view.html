@@ -20,17 +20,17 @@
         </ul>
       </div>
 
-      <div class="messages">  
+      <div class="messages">
         <h2>#{{ channel_name }}</h2>
         {% for msg in messages %}
         <div class="message">
           <div class="content">
             <div class="meta">
               <img src="{{ msg.user_icon }}" class="avatar">
-              <span class="user">{{ msg.user_name }}</span>
-              <span class="timestamp">{{ msg.timestamp }}</span>
+              <span class="user">{{ msg.user }}</span>
+              <span class="timestamp">{{ msg.ts }}</span>
             </div>
-            <div class="text">{{ msg.text_html|safe }}</div>
+            <div class="text">{{ msg.text | safe}}</div>
 
             {% if msg.files %}
             <div class="files">
@@ -58,7 +58,7 @@
                   <div class="reply">
                     <span class="reply-user">{{ reply.user_name }}</span>
                     <span class="reply-time">{{ reply.timestamp }}</span>
-                    <div class="reply-text">{{ reply.text_html|safe }}</div>
+                    <div class="reply-text">{{ reply.text | safe }}</div>
                   </div>
                 {% endfor %}
               </div>

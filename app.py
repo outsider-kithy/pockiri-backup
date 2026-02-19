@@ -7,7 +7,7 @@ from slack_sdk import WebClient
 from jinja2 import Environment, FileSystemLoader
 from dotenv import load_dotenv
 from slack_sdk.errors import SlackApiError
-from slack_function import export_channel_to_html, fetch_all_channel_histories
+from slack_function import export_channel_to_html, fetch_all_messages_with_threads, get_all_channels
 from datetime import datetime
 from google.cloud import storage
 
@@ -60,28 +60,21 @@ def capture_channels():
     workspace = workspace_info["team"]["name"]
 
     # --- チャンネル一覧を取得 --- #
-    try:
-        channels_response = slack.conversations_list(types="public_channel,private_channel", limit=1000)
-        channels = channels_response["channels"]
-    except SlackApiError as e:
-        return f"❌ Failed to list channels: {e.response['error']}", 500
+    channels = get_all_channels()
 
-    # --- 1. すべてのチャンネルの履歴を1回だけ取得 --- #
-    all_histories = fetch_all_channel_histories()
-
-    # --- 2. 各チャンネルをHTMLに出力 --- #
     for ch in channels:
+
         channel_id = ch["id"]
-        channel_name = ch.get("name")
+        channel_name = ch["name"]
+
+        messages = fetch_all_messages_with_threads(slack,channel_id)
 
         try:
             export_channel_to_html(
-                channel_id,
                 channel_name,
                 workspace,
                 channels,
-                archive_dir,
-                all_histories  # 👈 ここで全履歴を渡す
+                messages
             )
         except SlackApiError as e:
             if e.response["error"] == "not_in_channel":

@@ -107,6 +107,9 @@ main {
   font-size: 1rem;
   color: #2b2e32;
 }
+.messages .message a {
+  color: #50a1ff;
+}
 
 .content .meta {
   display: flex;
