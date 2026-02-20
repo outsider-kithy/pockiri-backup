@@ -113,22 +113,6 @@ def export_channel_to_html(channel_name, workspace, channels, all_histories):
     print(f"📝 Exported to GCS: gs://{BUCKET_NAME}/{object_name}")
 
 
-#  本文内のチャンネルidとユーザーidを実際のユーザー名・チャンネル名に置き換える
-def replace_mentions(text, user_map, channel_map):
-    if not text:
-        return text
-
-    # ユーザーIDを@ユーザー名に変換
-    for uid, uname in user_map.items():
-        text = text.replace(f"<@{uid}>", f'<span class="mention">@{uname}</span>')
-
-    # チャンネルIDを#チャンネル名に変換
-    for cid, cname in channel_map.items():
-        text = text.replace(f"<#{cid}>", f'<span class="channel-mention">#{cname}</span>')
-
-    return text
-
-
 #チャンネル内の全てのメッセージを取得
 def format_messages(messages):
 
@@ -146,7 +130,6 @@ def format_messages(messages):
         replies = []
 
         for r in m.get("replies_full", []):
-
             replies.append({
                 "user_name": r.get["user_name"],
                 "timestamp": format_ts(r.get("ts")),
@@ -158,38 +141,6 @@ def format_messages(messages):
         formatted.append(msg)
 
     return formatted
-
-# リプライを取得
-def fetch_thread_replies(client, channel_id, thread_ts):
-
-    replies = []
-    cursor = None
-
-    while True:
-
-        params = {
-            "channel": channel_id,
-            "ts": thread_ts,
-            "limit": 200
-        }
-
-        if cursor:
-            params["cursor"] = cursor
-
-        res = client.conversations_replies(**params)
-
-        messages = res.get("messages", [])
-
-        # 1件目は親なので除外
-        replies.extend(messages[1:])
-
-        cursor = res.get("response_metadata", {}).get("next_cursor")
-
-        if not cursor:
-            break
-
-    return replies
-
 
 # チャンネル内の全てのメッセージをリプライ込みで取得
 def fetch_all_messages_with_threads(client, channel_id):
@@ -229,6 +180,7 @@ def fetch_all_messages_with_threads(client, channel_id):
             else:
                 m["replies_full"] = []
 
+        print(messages)
         all_messages.extend(messages)
 
         cursor = res.get("response_metadata", {}).get("next_cursor")
@@ -310,13 +262,40 @@ def format_messages(messages, slack_client, user_cache):
         # --- リアクション ---
         msg["reactions"] = format_reactions(m.get("reactions", []))
 
+        # --- リプライ ---
+        replies = []
+
+        for r in m.get("replies_full", []):
+            # ユーザーIDをユーザー名に変換
+            reply_user_id = r.get("user")
+
+            if reply_user_id in user_cache:
+                reply_user_info = user_cache[reply_user_id]
+            else:
+                try:
+                    res = slack_client.users_info(user=reply_user_id)
+                    reply_user_info = res["user"]
+                    user_cache[reply_user_id] = reply_user_info
+                except:
+                    reply_user_info = {"real_name": "Unknown", "profile": {}}
+
+            reply_user_info = user_cache[reply_user_id]
+
+            replies.append({
+                "user_name": reply_user_info["name"],
+                "timestamp": format_ts(r.get("ts")),
+                "text": format_slack_text(r.get("text"), user_cache)
+            })
+
+        msg["replies"] = replies
+
         formatted.append(msg)
 
     return formatted
 
 
 # メッセージ本文の正規化
-def format_slack_text(text):
+def format_slack_text(text, user_map=None):
 
     if not text:
         return ""
