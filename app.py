@@ -16,6 +16,9 @@ env_mode = os.getenv("ENV_MODE", "development")
 dotenv_file = f".env.{env_mode}"
 load_dotenv(dotenv_path=dotenv_file)
 
+# ServiceとJobを切り替え
+RUN_MODE = os.getenv("RUN_MODE", "server")  # defaultはserver
+
 app = Flask(__name__)
 slack = WebClient(token=os.getenv("SLACK_BOT_TOKEN"))
 
@@ -46,8 +49,7 @@ PORT = os.getenv("PORT")
 env = Environment(loader=FileSystemLoader("templates"))
 template = env.get_template("slack_view.html")
 
-# /captureルート
-@app.route("/capture", methods=["POST"])
+# capture
 def capture_channels():
     """全チャンネルを自動参加 → 履歴取得 → HTML書き出し"""
 
@@ -170,6 +172,14 @@ def view_file(object_name):
 
     return Response(html, mimetype="text/html")
 
-# 起動
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(PORT))
+
+    if RUN_MODE == "job":
+        print("Running in JOB mode...")
+        capture_channels()
+        print("Job finished.")
+    else:
+        print("Running in SERVER mode...")
+        PORT = os.getenv("PORT", "8080")
+        app.run(host="0.0.0.0", port=int(PORT))
