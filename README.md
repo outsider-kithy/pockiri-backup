@@ -17,11 +17,3 @@ docker compose up --build
 # 本番環境
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
 ```
-
-## Botを実行するには
-
-```sh
-# 開発環境
-curl -X POST http://127.0.0.1:8080/capture
-
-```

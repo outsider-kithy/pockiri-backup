@@ -7,7 +7,7 @@ from slack_sdk import WebClient
 from jinja2 import Environment, FileSystemLoader
 from dotenv import load_dotenv
 from slack_sdk.errors import SlackApiError
-from slack_function import export_channel_to_html, fetch_all_messages_with_threads, get_all_channels
+from slack_function import export_channel_to_html, fetch_all_messages_with_threads, get_all_channels, ensure_bot_joined
 from datetime import datetime
 from google.cloud import storage
 
@@ -55,7 +55,6 @@ def capture_channels():
 
     # --- 日付ディレクトリを準備 --- #
     date_str = datetime.now().strftime("%Y-%m-%d")
-    archive_dir = f'archive/{date_str}'
 
     # --- ワークスペース情報を取得 --- #
     workspace_info = slack.team_info()
@@ -68,6 +67,9 @@ def capture_channels():
 
         channel_id = ch["id"]
         channel_name = ch["name"]
+
+        # Bot未参加のチャンネルの場合は参加
+        ensure_bot_joined(slack, channel_id)
 
         messages = fetch_all_messages_with_threads(slack,channel_id)
 

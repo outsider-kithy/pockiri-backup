@@ -1,12 +1,13 @@
 import os
 import re
 import requests
-from flask import render_template
 from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 from google.cloud import storage
 import re, html
+from jinja2 import Environment, FileSystemLoader
 
 # OSの環境変数や引数で環境を指定
 env_mode = os.getenv("ENV_MODE", "development")
@@ -78,6 +79,28 @@ def download_file_to_gcs(url, bucket_name, gcs_object_path, headers=None):
         print(f"❌ GCS upload failed: {e}")
         return False
 
+# Botが参加していないチャンネルの場合は参加させる
+def ensure_bot_joined(slack_client, channel_id):
+
+    try:
+        slack_client.conversations_join(channel=channel_id)
+
+    except SlackApiError as e:
+
+        error_code = e.response["error"]
+
+        if error_code == "already_in_channel":
+            pass
+
+        elif error_code == "method_not_supported_for_channel_type":
+            print(f"Private channel: {channel_id}")
+
+        elif error_code == "not_in_channel":
+            print(f"Bot cannot join: {channel_id}")
+
+        else:
+            print(f"Unexpected error: {error_code}")
+
 
 # 取得したチャンネルの情報をHTMLに出力
 def export_channel_to_html(channel_name, workspace, channels, all_histories):
@@ -92,12 +115,13 @@ def export_channel_to_html(channel_name, workspace, channels, all_histories):
         user_cache=user_cache
     )
 
-    # --- HTMLレンダリング ---
-    html = render_template(
-        "slack_view.html",
-        channel_name = channel_name,
+    env = Environment(loader=FileSystemLoader("templates"))
+    template = env.get_template("slack_view.html")
+
+    html = template.render(
+        channel_name=channel_name,
         messages = formatted_messages,
-        workspace = workspace,
+        workspace=workspace,
         channels = channels,
         date = datetime.now().strftime("%Y-%m-%d"),
     )
@@ -113,34 +137,6 @@ def export_channel_to_html(channel_name, workspace, channels, all_histories):
     print(f"📝 Exported to GCS: gs://{BUCKET_NAME}/{object_name}")
 
 
-#チャンネル内の全てのメッセージを取得
-def format_messages(messages):
-
-    formatted = []
-
-    for m in messages:
-
-        msg = {}
-
-        # --- 親 ---
-        msg["text"] = format_slack_text(m.get("text"))
-        msg["ts"] = format_ts(m.get("ts"))
-
-        # --- リプライ ---
-        replies = []
-
-        for r in m.get("replies_full", []):
-            replies.append({
-                "user_name": r.get["user_name"],
-                "timestamp": format_ts(r.get("ts")),
-                "text": format_slack_text(r.get("text"))
-            })
-
-        msg["replies"] = replies
-
-        formatted.append(msg)
-
-    return formatted
 
 # チャンネル内の全てのメッセージをリプライ込みで取得
 def fetch_all_messages_with_threads(client, channel_id):
@@ -231,17 +227,31 @@ def format_messages(messages, slack_client, user_cache):
         # --- ユーザー名変換 ---
         user_id = m.get("user") or m.get("bot_id")
 
-        if user_id in user_cache:
-            user_info = user_cache[user_id]
-        else:
-            try:
-                res = slack_client.users_info(user=user_id)
-                user_info = res["user"]
-                user_cache[user_id] = user_info
-            except:
-                user_info = {"real_name": "Unknown", "profile": {}}
+        user_info = None
 
-        user_info = user_cache[user_id]
+        if user_id:
+            user_info = user_cache.get(user_id)
+
+            if not user_info:
+                try:
+                    res = slack_client.users_info(user=user_id)
+                    user_info = res["user"]
+                except Exception:
+                    # Botや削除ユーザー対応
+                    user_info = {
+                        "real_name": m.get("username", "Unknown"),
+                        "name": m.get("username", "Unknown"),
+                        "profile": {}
+                    }
+
+                user_cache[user_id] = user_info
+
+        else:
+            user_info = {
+                "real_name": "Unknown",
+                "name": "Unknown",
+                "profile": {}
+            }
 
         avatar_url = format_avatars(
             user_info,
@@ -266,25 +276,36 @@ def format_messages(messages, slack_client, user_cache):
         replies = []
 
         for r in m.get("replies_full", []):
-            # ユーザーIDをユーザー名に変換
             reply_user_id = r.get("user")
+            reply_user_info = None
 
-            if reply_user_id in user_cache:
-                reply_user_info = user_cache[reply_user_id]
-            else:
-                try:
-                    res = slack_client.users_info(user=reply_user_id)
-                    reply_user_info = res["user"]
+            if reply_user_id:
+                reply_user_info = user_cache.get(reply_user_id)
+
+                if not reply_user_info:
+                    try:
+                        res = slack_client.users_info(user=reply_user_id)
+                        reply_user_info = res["user"]
+                    except Exception:
+                        reply_user_info = {
+                            "real_name": "Unknown",
+                            "name": "Unknown",
+                            "profile": {}
+                        }
+
                     user_cache[reply_user_id] = reply_user_info
-                except:
-                    reply_user_info = {"real_name": "Unknown", "profile": {}}
 
-            reply_user_info = user_cache[reply_user_id]
+            else:
+                reply_user_info = {
+                    "real_name": "Unknown",
+                    "name": "Unknown",
+                    "profile": {}
+                }
 
             replies.append({
-                "user_name": reply_user_info["name"],
+                "user_name": reply_user_info.get("name", "Unknown"),
                 "timestamp": format_ts(r.get("ts")),
-                "text": format_slack_text(r.get("text"), user_cache)
+                "text": format_slack_text(r.get("text", ""))
             })
 
         msg["replies"] = replies
@@ -368,10 +389,28 @@ def format_files(files):
     today = datetime.now().strftime("%Y-%m-%d")
 
     for f in files:
-        filename = f.get("name")
-        mimetype = f.get("mimetype")
+        filename = (
+            f.get("name")
+            or f.get("title")
+            or f"{f.get('id', 'file')}.dat"
+        )
+        if not isinstance(filename, str):
+            filename = str(filename)
+
+        mimetype = f.get("mimetype") or ""
         url_private = f.get("url_private")
-        url_public = os.path.join(STORAGE_DOMAIN, BUCKET_NAME, today, "media", filename)
+        url_public = f"{STORAGE_DOMAIN}/{BUCKET_NAME}/{today}/media/{filename}"
+
+         # 外部ファイルはスキップ
+        if not url_private:
+            print(f"⚠️ Skipping external file: {filename}")
+            formatted.append({
+                "name": filename,
+                "mimetype": mimetype,
+                "url_private": None,
+                "url_public": None,
+            })
+            continue
 
         # Slack APIトークンを認証ヘッダーとして渡す
         headers = {"Authorization": f"Bearer {SLACK_BOT_TOKEN}"}
